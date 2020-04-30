@@ -21,6 +21,11 @@ class Complex {
         this->image += o.image;
         return *this;
     }
+    Complex & operator /= (const int &o) {
+        this->real /= o;
+        this->image /= o;
+        return *this;
+    }
 };
 
 #define debug(...) cout << " [-] ", _dbg(#__VA_ARGS__, __VA_ARGS__)
@@ -42,6 +47,7 @@ ostream & operator << (ostream &os, Complex x){
 #define MAX_STEP 10
 
 class Complex twiddle_factor[SUBCARRIER_NUM + 1][SUBCARRIER_NUM];
+class Complex twiddle_factor_inverse[SUBCARRIER_NUM + 1][SUBCARRIER_NUM];
 void precompute_twiddle_factor();
 
 float precomputed_sin[SUBCARRIER_NUM + 1][SUBCARRIER_NUM];

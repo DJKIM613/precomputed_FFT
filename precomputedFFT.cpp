@@ -8,8 +8,8 @@ void precompute_sincos() {
     for(int i = 1 ; i <= SUBCARRIER_NUM ; i++) {
         for(int j = 0 ; j < SUBCARRIER_NUM ; j++) {
             float angle = 2 * M_PI / i * j;
-            precomputed_sin[i][j] = cos(angle);
-            precomputed_cos[i][j] = sin(angle);
+            precomputed_sin[i][j] = sin(angle);
+            precomputed_cos[i][j] = cos(angle);
         }
     }
 }
@@ -17,7 +17,8 @@ void precompute_sincos() {
 void precompute_twiddle_factor() {
     for(int i = 1 ; i <= SUBCARRIER_NUM ; i++){
         for(int j = 0 ; j < SUBCARRIER_NUM ; j++) {
-            twiddle_factor[i][j] = Complex(precomputed_sin[i][j], precomputed_cos[i][j]);
+            twiddle_factor[i][j] = Complex(precomputed_cos[i][j], -precomputed_sin[i][j]);
+            twiddle_factor_inverse[i][j] = Complex(precomputed_cos[i][j], precomputed_sin[i][j]);
         }
     }
 }
@@ -68,8 +69,6 @@ void precomputed_fft(int size, Complex *list) {
         int radix = step_radix[size][i];
         previous_size = step_size;
         step_size *= radix;
-        
-        debug(previous_size, step_size);
 
         for(int j = 0 ; j < size ; j++) {
             tmp_list[j] = list[j];
@@ -79,16 +78,49 @@ void precomputed_fft(int size, Complex *list) {
 
         for(int j = 0 ; j < size ; j++) {
             int base = j / step_size * step_size;
-            int offset = j % previous_size;
+            int step_offset = j - base;
+            int prev_step_offset = j % previous_size;
             for(int k = 0 ; k < radix ; k++) {
-                list[j] += tmp_list[base + offset + k * previous_size] * twiddle_factor[step_size][k * previous_size];
+                int tmp_list_index = base + k * previous_size + prev_step_offset;
+                list[j] += tmp_list[tmp_list_index] * twiddle_factor[step_size][step_offset * k];
+                //debug(j, tmp_list[tmp_list_index], twiddle_factor[step_size][k]);
             }
         }
-
-        for(int i = 0 ; i < size ; i++) cout << list[i] << ' ';
-        cout << '\n';
     }
 }
+
+void precomputed_inverse_fft(int size, Complex *list) {
+    Complex tmp_list[size];
+    for(int i = 0 ; i < size ; i++) tmp_list[i] = list[i];
+    for(int i = 0 ; i < size ; i++) list[precomputed_permutation[size][i]] = tmp_list[i];
+
+    int step_size = 1, previous_size = 1;
+    for(int i = step_number[size] - 1 ; i >= 0 ; i--){
+        int radix = step_radix[size][i];
+        previous_size = step_size;
+        step_size *= radix;
+        
+        for(int j = 0 ; j < size ; j++) {
+            tmp_list[j] = list[j];
+            list[j].real = 0;
+            list[j].image = 0;
+        }
+
+        for(int j = 0 ; j < size ; j++) {
+            int base = j / step_size * step_size;
+            int step_offset = j - base;
+            int prev_step_offset = j % previous_size;
+            for(int k = 0 ; k < radix ; k++) {
+                int tmp_list_index = base + k * previous_size + prev_step_offset;
+                list[j] += tmp_list[tmp_list_index] * twiddle_factor_inverse[step_size][step_offset * k];
+                //debug(j, tmp_list[tmp_list_index], twiddle_factor[step_size][k]);
+            }
+        }
+    }
+
+    for(int i = 0 ; i < size ; i++) list[i] /= size;
+}
+
 
 int sizes[] = {8};
 
@@ -99,15 +131,13 @@ int main() {
     precompute_all();
 
     for(int size : sizes) {
-        for(int i = 0 ; i < size ; i++) cout << twiddle_factor[size][i] << ' ';
-        cout << '\n';
+        //for(int i = 0 ; i < size ; i++) cout << twiddle_factor[size][i] << ' ';
+        //cout << '\n';
 
-        for(int i = 1 ; i < size ; i++) list[i].real = 1;
-        list[0].real = 2;
+        for(int i = 0 ; i < size ; i++) list[i].real = 2;
         
         precomputed_fft(size, list);
-
-        for(int i = 0 ; i < size; i++) cout << list[i] << '\n';
+        precomputed_inverse_fft(size, list);
     }
 
     return 0;
