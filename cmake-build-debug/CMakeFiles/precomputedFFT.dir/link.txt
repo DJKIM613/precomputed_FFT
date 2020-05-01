@@ -1,0 +1,1 @@
+/usr/bin/c++  -g   CMakeFiles/precomputedFFT.dir/precomputedFFT.cpp.o  -o precomputedFFT   -L/home/kimdojae/Algorithm/FFT/precomputed_FFT/S{MKL_ROOT}/lib/intel64  -Wl,-rpath,/home/kimdojae/Algorithm/FFT/precomputed_FFT/S{MKL_ROOT}/lib/intel64 -lmkl_sequential -lmkl_intel_core -lmkl_intel_ilp64 

@@ -1,13 +1,18 @@
 #include "precomputedFFT.h"
+#include "timer.h"
+#include "/opt/intel/compilers_and_libraries_2020.1.217/linux/mkl/include/mkl_dfti.h"
+#include "/opt/intel/compilers_and_libraries_2020.1.217/linux/mkl/include/mkl.h"
+
 #include <math.h>
 
 #include <iostream>
+#include <assert.h>
 using namespace std;
 
 void precompute_sincos() {
     for(int i = 1 ; i <= SUBCARRIER_NUM ; i++) {
         for(int j = 0 ; j < SUBCARRIER_NUM ; j++) {
-            float angle = 2 * M_PI / i * j;
+            float angle = 2 * M_PI * j / i;
             precomputed_sin[i][j] = sin(angle);
             precomputed_cos[i][j] = cos(angle);
         }
@@ -77,13 +82,14 @@ void precomputed_fft(int size, Complex *list) {
         }
 
         for(int j = 0 ; j < size ; j++) {
-            int base = j / step_size * step_size;
+            int base = j - j % step_size;
             int step_offset = j - base;
             int prev_step_offset = j % previous_size;
             for(int k = 0 ; k < radix ; k++) {
                 int tmp_list_index = base + k * previous_size + prev_step_offset;
-                list[j] += tmp_list[tmp_list_index] * twiddle_factor[step_size][step_offset * k];
-                //debug(j, tmp_list[tmp_list_index], twiddle_factor[step_size][k]);
+                list[j] += tmp_list[tmp_list_index] * twiddle_factor[step_size][step_offset * k % step_size];
+                //debug(step_offset * k, SUBCARRIER_NUM);
+                //assert(step_offset * k < SUBCARRIER_NUM);
             }
         }
     }
@@ -113,31 +119,83 @@ void precomputed_inverse_fft(int size, Complex *list) {
             for(int k = 0 ; k < radix ; k++) {
                 int tmp_list_index = base + k * previous_size + prev_step_offset;
                 list[j] += tmp_list[tmp_list_index] * twiddle_factor_inverse[step_size][step_offset * k];
-                //debug(j, tmp_list[tmp_list_index], twiddle_factor[step_size][k]);
             }
         }
     }
 
     for(int i = 0 ; i < size ; i++) list[i] /= size;
 }
+void validate_check(int size, Complex *arr) {
+    Complex a[size];
+    float real[size], image[size];
 
+    double eps = 1e-2;
+    for(int i = 0 ; i < size ; i++) {
+        a[i] = arr[i];
+        real[i] = arr[i].real;
+        image[i] = arr[i].image;
+    }
 
-int sizes[] = {8};
+    precomputed_fft(size, a);
 
+    DFTI_DESCRIPTOR_HANDLE my_desc2_handle = NULL;
+    MKL_LONG status;
+
+    status = DftiCreateDescriptor(&my_desc2_handle, DFTI_SINGLE, DFTI_COMPLEX, 1, size);
+    status = DftiSetValue(my_desc2_handle, DFTI_COMPLEX_STORAGE, DFTI_REAL_REAL);
+    status = DftiCommitDescriptor(my_desc2_handle);
+
+    status = DftiComputeForward(my_desc2_handle, real, image);
+
+    for(int i = 0 ; i < size ; i++) {
+        float diff_real = (a[i].real - real[i]);
+        float diff_image = (a[i].image - image[i]);
+
+        assert(abs(diff_real) < eps);
+        assert(abs(diff_image) < eps);
+    }
+}
+
+int sizes[] = {512};
+
+#define REPEAT 200
 
 int main() {
     Complex list[SUBCARRIER_NUM];
+    float r2c_data_real[SUBCARRIER_NUM], r2c_data_image[SUBCARRIER_NUM];
 
     precompute_all();
 
-    for(int size : sizes) {
-        //for(int i = 0 ; i < size ; i++) cout << twiddle_factor[size][i] << ' ';
-        //cout << '\n';
+    DFTI_DESCRIPTOR_HANDLE my_desc2_handle = NULL;
+    MKL_LONG status;
 
-        for(int i = 0 ; i < size ; i++) list[i].real = 2;
-        
+    for(int size : sizes) {
+        for(int i = 0 ; i < size ; i++) list[i].real = r2c_data_real[i] = rand() % 100;
+
+        validate_check(size, list);
+
+        DftiCreateDescriptor(&my_desc2_handle, DFTI_SINGLE, DFTI_COMPLEX, 1, size);
+        DftiSetValue(my_desc2_handle, DFTI_COMPLEX_STORAGE, DFTI_REAL_REAL);
+        DftiCommitDescriptor(my_desc2_handle);
+
+        Timer m1, m2;
+
         precomputed_fft(size, list);
-        precomputed_inverse_fft(size, list);
+        DftiComputeForward(my_desc2_handle, r2c_data_real, r2c_data_image);
+
+        m1.start();
+        for(int i = 0 ; i < REPEAT ; i++) precomputed_fft(size, list);
+        m1.stop();
+
+        m2.start();
+        for(int i = 0 ; i < REPEAT ; i++) DftiComputeForward(my_desc2_handle, r2c_data_real, r2c_data_image);
+        m2.stop();
+
+        status = DftiFreeDescriptor(&my_desc2_handle);
+        //precomputed_inverse_fft(size, list);
+
+        cout << m1.elapsednanoseconds() / REPEAT << ' ' << m2.elapsednanoseconds() / REPEAT << '\n';
+        cout << m1.elapsednanoseconds() / m2.elapsednanoseconds() << '\n';
     }
 
     return 0;

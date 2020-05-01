@@ -1,0 +1,4 @@
+/opt/clion-2020.1.1/bin/cmake/linux/bin/cmake -DCMAKE_BUILD_TYPE=Release -G "CodeBlocks - Unix Makefiles" /home/kimdojae/Algorithm/FFT/precomputed_FFT
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /home/kimdojae/Algorithm/FFT/precomputed_FFT/cmake-build-release

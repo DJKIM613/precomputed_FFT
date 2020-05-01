@@ -1,4 +1,5 @@
 #include <iostream>
+
 using namespace std;
 
 class Complex {
@@ -50,7 +51,7 @@ class Complex twiddle_factor[SUBCARRIER_NUM + 1][SUBCARRIER_NUM];
 class Complex twiddle_factor_inverse[SUBCARRIER_NUM + 1][SUBCARRIER_NUM];
 void precompute_twiddle_factor();
 
-float precomputed_sin[SUBCARRIER_NUM + 1][SUBCARRIER_NUM];
+float precomputed_sin[SUBCARRIER_NUM + 1][SUBCARRIER_NUM + 1];
 float precomputed_cos[SUBCARRIER_NUM + 1][SUBCARRIER_NUM];
 void precompute_sincos();
 
